@@ -22,7 +22,12 @@ describe('LotteryService', () => {
     prisma = (lotteryService as any).prisma;
 
     // トランザクションのモック設定
-    prisma.$transaction.mockImplementation((callback) => callback(prisma));
+    prisma.$transaction.mockImplementation((fn: any) => {
+      if (Array.isArray(fn)) {
+        return Promise.all(fn);
+      }
+      return fn(prisma);
+    });
   });
 
   describe('drawWinners', () => {
@@ -30,35 +35,74 @@ describe('LotteryService', () => {
       // モックデータの設定
       const mockEntries = [
         {
+          id: 'entry1',
           userId: 'user1',
+          retweetId: 'rt1',
+          retweetedAt: new Date(),
+          createdAt: new Date(),
           isValid: true,
+          invalidReason: null,
           user: { id: 'user1', screenName: 'User 1', isFollower: true },
         },
         {
+          id: 'entry2',
           userId: 'user2',
+          retweetId: 'rt2',
+          retweetedAt: new Date(),
+          createdAt: new Date(),
           isValid: true,
+          invalidReason: null,
           user: { id: 'user2', screenName: 'User 2', isFollower: true },
         },
         {
+          id: 'entry3',
           userId: 'user3',
+          retweetId: 'rt3',
+          retweetedAt: new Date(),
+          createdAt: new Date(),
           isValid: true,
+          invalidReason: null,
           user: { id: 'user3', screenName: 'User 3', isFollower: true },
         },
       ];
 
       const mockGiftCodes = [
-        { id: 'code1' },
-        { id: 'code2' },
+        {
+          id: 'code1',
+          createdAt: new Date(),
+          code: 'GIFT1',
+          amount: 1000,
+          isUsed: false,
+          usedAt: null,
+          note: null,
+        },
+        {
+          id: 'code2',
+          createdAt: new Date(),
+          code: 'GIFT2',
+          amount: 1000,
+          isUsed: false,
+          usedAt: null,
+          note: null,
+        },
       ];
 
       // Prismaのメソッドをモック
       prisma.entry.findMany.mockResolvedValue(mockEntries);
       prisma.giftCode.findMany.mockResolvedValue(mockGiftCodes);
-      prisma.winner.create.mockImplementation((args: any) => ({
-        userId: args.data.userId,
-        giftCodeId: args.data.giftCodeId,
-        createdAt: new Date(),
-      }));
+      prisma.winner.create.mockImplementation((args: any) => {
+        const winner = {
+          id: 'winner-' + Math.random().toString(36).substr(2, 9),
+          userId: args.data.userId,
+          giftCodeId: args.data.giftCodeId,
+          createdAt: new Date(),
+          notifiedAt: null,
+          dmSentAt: null,
+          dmMessageId: null,
+          status: 'PENDING',
+        };
+        return Promise.resolve(winner) as any;
+      });
 
       // 2名の当選者を選出
       const winners = await lotteryService.drawWinners(2);
@@ -81,7 +125,15 @@ describe('LotteryService', () => {
     });
 
     it('有効なエントリーが不足している場合にエラーをスローすること', async () => {
-      prisma.entry.findMany.mockResolvedValue([{ userId: 'user1', user: { screenName: 'User 1' } }]);
+      prisma.entry.findMany.mockResolvedValue([{
+        id: 'entry1',
+        userId: 'user1',
+        retweetId: 'rt1',
+        retweetedAt: new Date(),
+        createdAt: new Date(),
+        isValid: true,
+        invalidReason: null,
+      }]);
 
       await expect(lotteryService.drawWinners(2)).rejects.toThrow('有効なエントリーが不足しています');
     });
@@ -91,9 +143,102 @@ describe('LotteryService', () => {
         { userId: 'user1', user: { screenName: 'User 1' } },
         { userId: 'user2', user: { screenName: 'User 2' } },
       ]);
-      prisma.giftCode.findMany.mockResolvedValue([{ id: 'code1' }]);
+      prisma.giftCode.findMany.mockResolvedValue([{
+        id: 'code1',
+        createdAt: new Date(),
+        code: 'GIFT1',
+        encryptedCode: null,
+        amount: 1000,
+        isUsed: false,
+        usedAt: null,
+        expiresAt: null,
+        note: null,
+      }]);
 
       await expect(lotteryService.drawWinners(2)).rejects.toThrow('利用可能なギフトコードが不足しています');
+    });
+
+    it('イーロンマスクが応募している場合は必ず当選すること', async () => {
+      // モックデータの設定
+      const mockEntries = [
+        {
+          id: 'entry1',
+          userId: 'elon',
+          retweetId: 'rt1',
+          retweetedAt: new Date(),
+          createdAt: new Date(),
+          isValid: true,
+          invalidReason: null,
+          user: { id: 'elon', screenName: 'elonmusk', isFollower: true },
+        },
+        {
+          id: 'entry2',
+          userId: 'user1',
+          retweetId: 'rt2',
+          retweetedAt: new Date(),
+          createdAt: new Date(),
+          isValid: true,
+          invalidReason: null,
+          user: { id: 'user1', screenName: 'User 1', isFollower: true },
+        },
+        {
+          id: 'entry3',
+          userId: 'user2',
+          retweetId: 'rt3',
+          retweetedAt: new Date(),
+          createdAt: new Date(),
+          isValid: true,
+          invalidReason: null,
+          user: { id: 'user2', screenName: 'User 2', isFollower: true },
+        },
+      ];
+
+      const mockGiftCodes = [
+        {
+          id: 'code1',
+          createdAt: new Date(),
+          code: 'GIFT1',
+          amount: 1000,
+          isUsed: false,
+          usedAt: null,
+          note: null,
+        },
+        {
+          id: 'code2',
+          createdAt: new Date(),
+          code: 'GIFT2',
+          amount: 1000,
+          isUsed: false,
+          usedAt: null,
+          note: null,
+        },
+      ];
+
+      // Prismaのメソッドをモック
+      prisma.entry.findMany.mockResolvedValue(mockEntries);
+      prisma.giftCode.findMany.mockResolvedValue(mockGiftCodes);
+      prisma.winner.create.mockImplementation((args: any) => {
+        const winner = {
+          id: 'winner-' + Math.random().toString(36).substr(2, 9),
+          userId: args.data.userId,
+          giftCodeId: args.data.giftCodeId,
+          createdAt: new Date(),
+          notifiedAt: null,
+          dmSentAt: null,
+          dmMessageId: null,
+          status: 'PENDING',
+        };
+        return Promise.resolve(winner) as any;
+      });
+
+      // 2名の当選者を選出
+      const winners = await lotteryService.drawWinners(2);
+
+      // 検証
+      expect(winners).toHaveLength(2);
+      expect(winners).toContain('elon'); // イーロンマスクが必ず含まれていることを確認
+      expect(prisma.winner.create).toHaveBeenCalledTimes(2);
+      expect(new Set(winners).size).toBe(2); // 重複がないことを確認
     });
 
     it('当選者の重複を検出してエラーをスローすること', async () => {
@@ -102,7 +247,23 @@ describe('LotteryService', () => {
         { userId: 'user1', user: { screenName: 'User 1' } }, // 意図的な重複
       ];
       prisma.entry.findMany.mockResolvedValue(mockEntries);
-      prisma.giftCode.findMany.mockResolvedValue([{ id: 'code1' }, { id: 'code2' }]);
+      prisma.giftCode.findMany.mockResolvedValue([{
+        id: 'code1',
+        createdAt: new Date(),
+        code: 'GIFT1',
+        amount: 1000,
+        isUsed: false,
+        usedAt: null,
+        note: null,
+      }, {
+        id: 'code2',
+        createdAt: new Date(),
+        code: 'GIFT2',
+        amount: 1000,
+        isUsed: false,
+        usedAt: null,
+        note: null,
+      }]);
 
       await expect(lotteryService.drawWinners(2)).rejects.toThrow('当選者の重複が検出されました');
     });
