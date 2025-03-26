@@ -105,7 +105,7 @@ export class LotteryService {
   /**
    * 暗号論的に安全な乱数を使用してエントリーからランダムに選出
    */
-  private selectRandomEntries(entries: any[], count: number): any[] {
+  private selectRandomEntries(entries: Array<{ userId: string; user: { screenName: string } }>, count: number): Array<{ userId: string; user: { screenName: string } }> {
     const selected = new Set<number>();
     const result = [];
     let attempts = 0;
