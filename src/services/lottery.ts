@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 import crypto from 'crypto';
 
 export class LotteryService {
@@ -14,60 +14,92 @@ export class LotteryService {
    * @returns 当選者のユーザーID配列
    */
   async drawWinners(numberOfWinners: number): Promise<string[]> {
-    // 有効なエントリーを全て取得
-    const validEntries = await this.prisma.entry.findMany({
-      where: {
-        isValid: true,
-        user: {
-          isFollower: true, // フォロワーのみ
-        },
-      },
-      include: {
-        user: true,
-      },
-    });
-
-    if (validEntries.length === 0) {
-      throw new Error('No valid entries found');
+    if (numberOfWinners <= 0) {
+      throw new Error('当選者数は1以上を指定してください');
     }
 
-    if (validEntries.length < numberOfWinners) {
-      throw new Error(`Not enough valid entries. Required: ${numberOfWinners}, Found: ${validEntries.length}`);
-    }
-
-    // 暗号論的に安全な乱数を使用して当選者を選出
-    const winners = this.selectRandomEntries(validEntries, numberOfWinners);
-
-    // トランザクション内で当選情報を保存
-    const winnerIds = await this.prisma.$transaction(async (tx) => {
-      const availableGiftCodes = await tx.giftCode.findMany({
-        where: {
-          winner: null, // まだ使用されていないギフトコード
-        },
-        take: numberOfWinners,
-      });
-
-      if (availableGiftCodes.length < numberOfWinners) {
-        throw new Error('Not enough gift codes available');
-      }
-
-      const winnerIds: string[] = [];
-
-      for (let i = 0; i < winners.length; i++) {
-        const winner = await tx.winner.create({
-          data: {
-            userId: winners[i].userId,
-            giftCodeId: availableGiftCodes[i].id,
-            status: 'PENDING',
+    try {
+      // トランザクション内で全ての処理を実行
+      return await this.prisma.$transaction(async (tx) => {
+        // 有効なエントリーを全て取得（既に当選していないユーザーのみ）
+        const validEntries = await tx.entry.findMany({
+          where: {
+            isValid: true,
+            user: {
+              isFollower: true, // フォロワーのみ
+              winners: { none: {} }, // まだ当選していないユーザーのみ
+            },
+          },
+          include: {
+            user: true,
           },
         });
-        winnerIds.push(winner.userId);
+
+        if (validEntries.length === 0) {
+          throw new Error('有効なエントリーが見つかりませんでした');
+        }
+
+        if (validEntries.length < numberOfWinners) {
+          throw new Error(`有効なエントリーが不足しています（必要数: ${numberOfWinners}、現在数: ${validEntries.length}）`);
+        }
+
+        // 使用可能なギフトコードを取得
+        const availableGiftCodes = await tx.giftCode.findMany({
+          where: {
+            winner: null, // まだ使用されていないギフトコード
+          },
+          take: numberOfWinners,
+          orderBy: { id: 'asc' }, // 一貫性のある順序で取得
+        });
+
+        if (availableGiftCodes.length < numberOfWinners) {
+          throw new Error('利用可能なギフトコードが不足しています');
+        }
+
+        // 暗号論的に安全な乱数を使用して当選者を選出
+        const winners = this.selectRandomEntries(validEntries, numberOfWinners);
+
+        // 当選情報を保存
+        const winnerIds: string[] = [];
+        const winnerCreationPromises = winners.map(async (winner, index) => {
+          try {
+            const createdWinner = await tx.winner.create({
+              data: {
+                userId: winner.userId,
+                giftCodeId: availableGiftCodes[index].id,
+                status: 'PENDING',
+              },
+            });
+            winnerIds.push(createdWinner.userId);
+          } catch (error) {
+            if (error instanceof Prisma.PrismaClientKnownRequestError) {
+              if (error.code === 'P2002') { // ユニーク制約違反
+                throw new Error(`ユーザー ${winner.user.screenName} は既に当選しています`);
+              }
+            }
+            throw error;
+          }
+        });
+
+        await Promise.all(winnerCreationPromises);
+
+        // 重複チェック
+        const uniqueWinnerIds = new Set(winnerIds);
+        if (uniqueWinnerIds.size !== numberOfWinners) {
+          throw new Error('当選者の重複が検出されました');
+        }
+
+        return winnerIds;
+      }, {
+        timeout: 10000, // 10秒でタイムアウト
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable, // 最も厳格な分離レベル
+      });
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
       }
-
-      return winnerIds;
-    });
-
-    return winnerIds;
+      throw new Error('抽選処理中にエラーが発生しました');
+    }
   }
 
   /**
@@ -76,8 +108,11 @@ export class LotteryService {
   private selectRandomEntries(entries: any[], count: number): any[] {
     const selected = new Set<number>();
     const result = [];
+    let attempts = 0;
+    const maxAttempts = count * 10; // 無限ループ防止
 
-    while (selected.size < count) {
+    while (selected.size < count && attempts < maxAttempts) {
+      attempts++;
       // 暗号論的に安全な乱数を生成
       const randomBytes = crypto.randomBytes(4);
       const randomNumber = randomBytes.readUInt32BE(0);
@@ -87,6 +122,10 @@ export class LotteryService {
         selected.add(index);
         result.push(entries[index]);
       }
+    }
+
+    if (result.length < count) {
+      throw new Error('抽選処理中に予期せぬエラーが発生しました');
     }
 
     return result;
@@ -101,6 +140,7 @@ export class LotteryService {
         user: true,
         giftCode: true,
       },
+      orderBy: { createdAt: 'asc' },
     });
   }
 
@@ -108,6 +148,10 @@ export class LotteryService {
    * 特定の当選者情報を取得
    */
   async getWinner(userId: string) {
+    if (!userId) {
+      throw new Error('ユーザーIDを指定してください');
+    }
+
     return this.prisma.winner.findFirst({
       where: {
         userId,
