@@ -24,14 +24,13 @@ GOROmanフォロワー5万人突破記念 Amazonギフト券プレゼントキ�
 
 - 言語：TypeScript
 - フレームワーク：Node.js
-- データベース：PostgreSQL（Prisma ORM）
+- データベース：SQLite（Prisma ORM）
 - API：Twitter API v2
 
 ## セットアップ
 
 ### 必要条件
 - Node.js 18.x以上
-- PostgreSQL 15.x以上
 - Twitter API v2アクセストークン
 
 ### インストール手順
