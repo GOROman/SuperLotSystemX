@@ -1,68 +1,63 @@
 import { TwitterApi } from 'twitter-api-v2';
+import { twitterConfig } from '../config/twitter.config';
+
+export interface RepostUser {
+  id: string;
+  username: string;
+  name: string;
+  repostedAt: Date;
+}
 
 export class TwitterService {
   private client: TwitterApi;
 
   constructor() {
-    const apiKey = process.env.TWITTER_API_KEY;
-    const apiSecret = process.env.TWITTER_API_SECRET;
-    const accessToken = process.env.TWITTER_ACCESS_TOKEN;
-    const accessSecret = process.env.TWITTER_ACCESS_SECRET;
+    const bearerToken = process.env.TWITTER_BEARER_TOKEN;
 
-    if (!apiKey || !apiSecret || !accessToken || !accessSecret) {
-      throw new Error('Twitter API credentials are not properly configured');
+    if (!bearerToken) {
+      throw new Error('Twitter API bearer token is not configured');
     }
 
-    this.client = new TwitterApi({
-      appKey: apiKey,
-      appSecret: apiSecret,
-      accessToken: accessToken,
-      accessSecret: accessSecret,
-    });
+    this.client = new TwitterApi(bearerToken);
   }
 
   /**
-   * ユーザーのツイートを取得
+   * 指定されたツイートのリポストユーザーを取得
    */
-  async getUserTweets(userId: string, maxResults = 10) {
+  async getRepostUsers(tweetId: string): Promise<RepostUser[]> {
     try {
-      const tweets = await this.client.v2.userTimeline(userId, {
-        max_results: maxResults,
-        'tweet.fields': ['created_at', 'public_metrics'],
+      const retweeters = await this.client.v2.tweetRetweetedBy(tweetId, {
+        'user.fields': ['username', 'name'],
       });
-      return tweets.data;
+
+      return retweeters.data.map(user => ({
+        id: user.id,
+        username: user.username,
+        name: user.name,
+        repostedAt: new Date(), // Note: Twitter API v2では正確なリツイート時刻は取得できません
+      }));
     } catch (error) {
-      console.error('Error fetching user tweets:', error);
+      console.error(`Error fetching repost users for tweet ${tweetId}:`, error);
       throw error;
     }
   }
 
   /**
-   * キーワードでツイートを検索
+   * 設定ファイルで指定された全ツイートのリポストユーザーを取得
    */
-  async searchTweets(query: string, maxResults = 10) {
-    try {
-      const tweets = await this.client.v2.search(query, {
-        max_results: maxResults,
-        'tweet.fields': ['created_at', 'public_metrics'],
-      });
-      return tweets.data;
-    } catch (error) {
-      console.error('Error searching tweets:', error);
-      throw error;
-    }
-  }
+  async getAllConfiguredTweetRepostUsers(): Promise<Map<string, RepostUser[]>> {
+    const results = new Map<string, RepostUser[]>();
 
-  /**
-   * ツイートを投稿
-   */
-  async tweet(text: string) {
-    try {
-      const tweet = await this.client.v2.tweet(text);
-      return tweet.data;
-    } catch (error) {
-      console.error('Error posting tweet:', error);
-      throw error;
+    for (const tweetId of twitterConfig.targetTweetIds) {
+      try {
+        const users = await this.getRepostUsers(tweetId);
+        results.set(tweetId, users);
+      } catch (error) {
+        console.error(`Failed to get repost users for tweet ${tweetId}:`, error);
+        results.set(tweetId, []);
+      }
     }
+
+    return results;
   }
 }
