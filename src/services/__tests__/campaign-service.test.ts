@@ -1,7 +1,8 @@
 import { PrismaClient } from '@prisma/client';
-import { CampaignService } from '../campaign-service';
+import { CampaignService, CampaignServiceDependencies } from '../campaign-service';
 import { TwitterService } from '../twitter';
 import { FollowerService } from '../follower-service';
+import { Logger } from '../utils/logger';
 
 // モック
 jest.mock('@prisma/client');
@@ -13,10 +14,41 @@ describe('CampaignService', () => {
   let mockPrisma: jest.Mocked<PrismaClient>;
   let mockTwitter: jest.Mocked<TwitterService>;
   let mockFollowerService: jest.Mocked<FollowerService>;
+  let mockLogger: jest.Mocked<Logger>;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    campaignService = new CampaignService();
+
+    mockPrisma = {
+      entry: {
+        create: jest.fn(),
+        findFirst: jest.fn(),
+        count: jest.fn(),
+        groupBy: jest.fn()
+      }
+    } as unknown as jest.Mocked<PrismaClient>;
+
+    mockTwitter = {
+      getRetweetInfo: jest.fn()
+    } as unknown as jest.Mocked<TwitterService>;
+
+    mockFollowerService = {
+      isFollower: jest.fn()
+    } as unknown as jest.Mocked<FollowerService>;
+
+    mockLogger = {
+      info: jest.fn(),
+      error: jest.fn()
+    };
+
+    const dependencies: CampaignServiceDependencies = {
+      prisma: mockPrisma,
+      twitter: mockTwitter,
+      followerService: mockFollowerService,
+      logger: mockLogger
+    };
+
+    campaignService = new CampaignService(dependencies);
   });
 
   describe('processRetweet', () => {

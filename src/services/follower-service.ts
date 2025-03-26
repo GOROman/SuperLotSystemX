@@ -63,6 +63,27 @@ export class FollowerService {
   }
 
   /**
+   * ユーザーがフォロワーかどうかを確認する
+   * @param twitterId Twitter ID
+   */
+  async isFollower(twitterId: string): Promise<boolean> {
+    try {
+      const user = await this.prisma.user.findUnique({
+        where: { twitterId },
+        select: { isFollower: true },
+      });
+
+      return user?.isFollower ?? false;
+    } catch (error) {
+      this.logger.error('フォロワー情報の取得に失敗しました', {
+        twitterId,
+        error,
+      });
+      throw error;
+    }
+  }
+
+  /**
    * フォロワー状態を更新する
    * @param twitterId Twitter ID
    * @param isFollower フォロワーかどうか

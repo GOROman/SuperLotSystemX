@@ -1,19 +1,26 @@
 import { PrismaClient, Entry, User } from '@prisma/client';
 import { TwitterService } from './twitter';
 import { FollowerService } from './follower-service';
-import { SystemLogger } from '../utils/logger';
+import { Logger } from '../utils/logger';
+
+export interface CampaignServiceDependencies {
+  prisma: PrismaClient;
+  twitter: TwitterService;
+  followerService: FollowerService;
+  logger: Logger;
+}
 
 export class CampaignService {
   private prisma: PrismaClient;
   private twitter: TwitterService;
   private followerService: FollowerService;
-  private logger: SystemLogger;
+  private logger: Logger;
 
-  constructor() {
-    this.prisma = new PrismaClient();
-    this.twitter = new TwitterService();
-    this.followerService = new FollowerService();
-    this.logger = new SystemLogger();
+  constructor(dependencies: CampaignServiceDependencies) {
+    this.prisma = dependencies.prisma;
+    this.twitter = dependencies.twitter;
+    this.followerService = dependencies.followerService;
+    this.logger = dependencies.logger;
   }
 
   /**
