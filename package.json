@@ -1,0 +1,28 @@
+{
+  "name": "superlotsystemx",
+  "version": "1.0.0",
+  "description": "Super Lot System X",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@prisma/client": "^6.5.0",
+    "@types/node": "^22.13.13",
+    "prisma": "^6.5.0",
+    "typescript": "^5.8.2"
+  },
+  "dependencies": {
+    "debug": "^4.4.0",
+    "esbuild": "^0.25.1",
+    "esbuild-register": "^3.6.0",
+    "ms": "^2.1.3",
+    "undici-types": "^6.20.0"
+  }
+}
