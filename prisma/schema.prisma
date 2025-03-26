@@ -43,7 +43,7 @@ model Entry {
 model Winner {
   id            String     @id @default(cuid())
   userId        String     // 当選者のID
-  giftCodeId    String     // ギフトコードのID
+  giftCodeId    String     @unique // ギフトコードのID
   notifiedAt    DateTime?  // 通知日時
   dmSentAt      DateTime?  // DM送信日時
   dmMessageId   String?    // 送信したDMのID
