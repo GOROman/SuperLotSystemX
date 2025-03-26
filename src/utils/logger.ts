@@ -50,7 +50,7 @@ export class Logger {
    * @param metadata メタデータ
    */
   private async log(
-    type: 'INFO' | 'ERROR' | 'WARN' | 'DEBUG',
+    type: 'INFO' | 'ERROR' | 'WARNING' | 'DEBUG',
     message: string,
     metadata?: Record<string, unknown>
   ): Promise<void> {
