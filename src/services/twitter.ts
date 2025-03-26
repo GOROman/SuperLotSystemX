@@ -60,4 +60,26 @@ export class TwitterService {
 
     return results;
   }
-}
+
+  /**
+   * リツイート情報を取得する
+   * @param tweetId ツイートID
+   * @param userId ユーザーID
+   */
+  async getRetweetInfo(tweetId: string, userId: string): Promise<{ created_at: string }> {
+    try {
+      const repostUsers = await this.getRepostUsers(tweetId);
+      const userRepost = repostUsers.find(user => user.id === userId);
+
+      if (!userRepost) {
+        throw new Error('Retweet not found');
+      }
+
+      return {
+        created_at: userRepost.repostedAt.toISOString()
+      };
+    } catch (error) {
+      console.error(`Error fetching retweet info for tweet ${tweetId} and user ${userId}:`, error);
+      throw error;
+    }
+  }
