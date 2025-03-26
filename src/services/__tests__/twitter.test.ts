@@ -1,34 +1,44 @@
 import { TwitterService } from '../twitter';
+import { twitterConfig } from '../../config/twitter.config';
 
 // Mock Twitter API client
 jest.mock('twitter-api-v2', () => {
   return {
     TwitterApi: jest.fn().mockImplementation(() => ({
       v2: {
-        userTimeline: jest.fn().mockResolvedValue({
-          data: [{ id: '1', text: 'Test tweet' }],
-        }),
-        search: jest.fn().mockResolvedValue({
-          data: [{ id: '1', text: 'Test tweet' }],
-        }),
-        tweet: jest.fn().mockResolvedValue({
-          data: { id: '1', text: 'Test tweet' },
+        tweetRetweetedBy: jest.fn().mockResolvedValue({
+          data: [
+            {
+              id: '123',
+              username: 'testuser1',
+              name: 'Test User 1',
+            },
+            {
+              id: '456',
+              username: 'testuser2',
+              name: 'Test User 2',
+            },
+          ],
         }),
       },
     })),
   };
 });
 
+// Mock config
+jest.mock('../../config/twitter.config', () => ({
+  twitterConfig: {
+    targetTweetIds: ['tweet1', 'tweet2'],
+    scanIntervalMinutes: 5,
+  },
+}));
+
 describe('TwitterService', () => {
   let twitterService: TwitterService;
 
   beforeEach(() => {
     // Mock environment variables
-    process.env.TWITTER_API_KEY = 'test-api-key';
-    process.env.TWITTER_API_SECRET = 'test-api-secret';
-    process.env.TWITTER_ACCESS_TOKEN = 'test-access-token';
-    process.env.TWITTER_ACCESS_SECRET = 'test-access-secret';
-
+    process.env.TWITTER_BEARER_TOKEN = 'test-bearer-token';
     twitterService = new TwitterService();
   });
 
@@ -36,31 +46,32 @@ describe('TwitterService', () => {
     jest.clearAllMocks();
   });
 
-  it('should throw error if Twitter API credentials are not configured', () => {
-    delete process.env.TWITTER_API_KEY;
+  it('should throw error if Twitter API bearer token is not configured', () => {
+    delete process.env.TWITTER_BEARER_TOKEN;
     expect(() => new TwitterService()).toThrow(
-      'Twitter API credentials are not properly configured'
+      'Twitter API bearer token is not configured'
     );
   });
 
-  describe('getUserTweets', () => {
-    it('should fetch user tweets successfully', async () => {
-      const tweets = await twitterService.getUserTweets('123');
-      expect(tweets).toEqual([{ id: '1', text: 'Test tweet' }]);
+  describe('getRepostUsers', () => {
+    it('should fetch repost users successfully', async () => {
+      const users = await twitterService.getRepostUsers('tweet1');
+      expect(users).toHaveLength(2);
+      expect(users[0]).toEqual({
+        id: '123',
+        username: 'testuser1',
+        name: 'Test User 1',
+        repostedAt: expect.any(Date),
+      });
     });
   });
 
-  describe('searchTweets', () => {
-    it('should search tweets successfully', async () => {
-      const tweets = await twitterService.searchTweets('test');
-      expect(tweets).toEqual([{ id: '1', text: 'Test tweet' }]);
-    });
-  });
-
-  describe('tweet', () => {
-    it('should post tweet successfully', async () => {
-      const tweet = await twitterService.tweet('Hello, world!');
-      expect(tweet).toEqual({ id: '1', text: 'Test tweet' });
+  describe('getAllConfiguredTweetRepostUsers', () => {
+    it('should fetch repost users for all configured tweets', async () => {
+      const results = await twitterService.getAllConfiguredTweetRepostUsers();
+      expect(results.size).toBe(2);
+      expect(results.get('tweet1')).toHaveLength(2);
+      expect(results.get('tweet2')).toHaveLength(2);
     });
   });
 });
