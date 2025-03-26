@@ -30,8 +30,8 @@ export class Logger {
    * @param message メッセージ
    * @param metadata メタデータ
    */
-  async warn(message: string, metadata?: Record<string, unknown>): Promise<void> {
-    await this.log('WARN', message, metadata);
+  async warning(message: string, metadata?: Record<string, unknown>): Promise<void> {
+    await this.log('WARNING', message, metadata);
   }
 
   /**
