@@ -1,5 +1,6 @@
 import { PrismaClient, Entry, User } from '@prisma/client';
-import { FraudDetectionService } from '../fraud-detection-service';
+import { FraudDetectionService, FraudDetectionDependencies } from '../fraud-detection-service';
+import { Logger } from '../utils/logger';
 
 // モック
 jest.mock('@prisma/client');
@@ -7,10 +8,34 @@ jest.mock('@prisma/client');
 describe('FraudDetectionService', () => {
   let fraudDetectionService: FraudDetectionService;
   let mockPrisma: jest.Mocked<PrismaClient>;
+  let mockLogger: jest.Mocked<Logger>;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    fraudDetectionService = new FraudDetectionService();
+    
+    mockPrisma = {
+      user: {
+        findUnique: jest.fn(),
+        update: jest.fn()
+      },
+      entry: {
+        findMany: jest.fn(),
+        update: jest.fn()
+      }
+    } as unknown as jest.Mocked<PrismaClient>;
+
+    mockLogger = {
+      info: jest.fn(),
+      error: jest.fn(),
+      warning: jest.fn()
+    };
+
+    const dependencies: FraudDetectionDependencies = {
+      prisma: mockPrisma,
+      logger: mockLogger
+    };
+
+    fraudDetectionService = new FraudDetectionService(dependencies);
   });
 
   describe('calculateFraudScore', () => {

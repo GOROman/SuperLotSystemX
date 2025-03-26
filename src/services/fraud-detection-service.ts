@@ -1,18 +1,22 @@
 import { PrismaClient, User, Entry } from '@prisma/client';
-import { SystemLogger } from '../utils/logger';
+import { Logger } from '../utils/logger';
+
+export interface FraudDetectionDependencies {
+  prisma: PrismaClient;
+  logger: Logger;
+}
 
 export class FraudDetectionService {
   private prisma: PrismaClient;
-  private logger: SystemLogger;
+  private logger: Logger;
 
   // 不正検知のための閾値
   private readonly SUSPICIOUS_ENTRY_THRESHOLD = 5; // 24時間以内の応募回数閾値
   private readonly ACCOUNT_AGE_THRESHOLD = 30; // アカウント年齢の閾値（日数）
-  private readonly FOLLOWER_RATIO_THRESHOLD = 0.1; // フォロワー比率の閾値
 
-  constructor() {
-    this.prisma = new PrismaClient();
-    this.logger = new SystemLogger();
+  constructor(dependencies: FraudDetectionDependencies) {
+    this.prisma = dependencies.prisma;
+    this.logger = dependencies.logger;
   }
 
   /**
