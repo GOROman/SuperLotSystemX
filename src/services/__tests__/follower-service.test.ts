@@ -1,37 +1,31 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, User } from '@prisma/client';
 import { FollowerService } from '../follower-service';
 import { Logger } from '../../utils/logger';
+import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
 
 // モックの作成
-const mockPrisma = {
-  user: {
-    upsert: jest.fn(),
-    update: jest.fn(),
-    findMany: jest.fn(),
-    count: jest.fn(),
-  },
-} as unknown as PrismaClient;
-
-const mockLogger = {
-  info: jest.fn(),
-  error: jest.fn(),
-} as unknown as Logger;
+const mockPrisma = mockDeep<PrismaClient>();
+const mockLogger = mockDeep<Logger>();
 
 describe('FollowerService', () => {
   let followerService: FollowerService;
 
   beforeEach(() => {
-    followerService = new FollowerService(mockPrisma, mockLogger);
+    followerService = new FollowerService(mockPrisma as unknown as PrismaClient, mockLogger);
     jest.clearAllMocks();
   });
 
   describe('upsertFollower', () => {
     it('should create or update a follower', async () => {
-      const mockUser = {
+      const mockUser: User = {
         id: '1',
         twitterId: '123',
         screenName: 'test_user',
+        profileImage: 'http://example.com/image.jpg',
         isFollower: true,
+        followedAt: new Date(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
       };
 
       mockPrisma.user.upsert.mockResolvedValue(mockUser);
@@ -62,10 +56,15 @@ describe('FollowerService', () => {
 
   describe('updateFollowerStatus', () => {
     it('should update follower status', async () => {
-      const mockUser = {
+      const mockUser: User = {
         id: '1',
         twitterId: '123',
+        screenName: 'test_user',
+        profileImage: null,
         isFollower: false,
+        followedAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
       };
 
       mockPrisma.user.update.mockResolvedValue(mockUser);
@@ -80,9 +79,27 @@ describe('FollowerService', () => {
 
   describe('getFollowers', () => {
     it('should return followers list', async () => {
-      const mockFollowers = [
-        { id: '1', twitterId: '123', isFollower: true },
-        { id: '2', twitterId: '456', isFollower: true },
+      const mockFollowers: User[] = [
+        {
+          id: '1',
+          twitterId: '123',
+          screenName: 'test_user1',
+          profileImage: null,
+          isFollower: true,
+          followedAt: new Date(),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+        {
+          id: '2',
+          twitterId: '456',
+          screenName: 'test_user2',
+          profileImage: null,
+          isFollower: true,
+          followedAt: new Date(),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
       ];
 
       mockPrisma.user.findMany.mockResolvedValue(mockFollowers);
