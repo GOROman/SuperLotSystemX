@@ -1,10 +1,9 @@
 import { TwitterApi } from 'twitter-api-v2';
 import dotenv from 'dotenv';
-import { PrismaClient, Participant } from '@prisma/client';
+import { Participant } from '@prisma/client';
+import prisma from '../prisma/client';
 
 dotenv.config();
-
-const prisma = new PrismaClient();
 
 // 環境変数の型定義
 interface Config {
@@ -12,7 +11,6 @@ interface Config {
   twitterApiSecret: string;
   twitterAccessToken: string;
   twitterAccessTokenSecret: string;
-  twitterBearerToken: string;
   targetTweets: string[];
   winnerCount: number;
   giftAmount: number;
@@ -24,7 +22,6 @@ const config: Config = {
   twitterApiSecret: process.env.TWITTER_API_SECRET || '',
   twitterAccessToken: process.env.TWITTER_ACCESS_TOKEN || '',
   twitterAccessTokenSecret: process.env.TWITTER_ACCESS_TOKEN_SECRET || '',
-  twitterBearerToken: process.env.TWITTER_BEARER_TOKEN || '',
   targetTweets: process.env.TARGET_TWEETS?.split(',') || [],
   winnerCount: Number(process.env.WINNER_COUNT) || 10,
   giftAmount: Number(process.env.GIFT_AMOUNT) || 15,
@@ -91,9 +88,42 @@ function generateDMMessage(giftCode: string): string {
   return `🎉おめでとうございます！\nGOROmanフォロワー5万人突破記念キャンペーンに当選しました！\n\nAmazonギフト券（${config.giftAmount}円分）: ${giftCode}\n\nご参加ありがとうございました！`;
 }
 
+// シード値に基づく乱数生成器クラス
+class SeededRandom {
+  private seed: number;
+
+  constructor(seed: number) {
+    this.seed = seed;
+  }
+
+  // xorshiftアルゴリズムによる乱数生成
+  private next(): number {
+    this.seed ^= this.seed << 13;
+    this.seed ^= this.seed >> 17;
+    this.seed ^= this.seed << 5;
+    return (this.seed >>> 0) / 4294967296;
+  }
+
+  // 指定範囲の整数を生成
+  public nextInt(min: number, max: number): number {
+    return Math.floor(this.next() * (max - min + 1)) + min;
+  }
+}
+
 // 抽選処理
-async function selectWinners(participants: Participant[]): Promise<Participant[]> {
-  const shuffled = [...participants].sort(() => Math.random() - 0.5);
+async function selectWinners(participants: Participant[], seed?: number): Promise<Participant[]> {
+  // シード値が指定されていない場合は現在のタイムスタンプを使用
+  const currentSeed = seed ?? Date.now();
+  const random = new SeededRandom(currentSeed);
+  
+  // Fisher-Yatesシャッフルアルゴリズムの実装
+  const shuffled = [...participants];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = random.nextInt(0, i);
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+
+  console.log(`抽選に使用したシード値: ${currentSeed}`);
   return shuffled.slice(0, config.winnerCount);
 }
 
@@ -122,8 +152,9 @@ async function main(): Promise<void> {
       return;
     }
 
-    // 当選者の選出
-    const winners = await selectWinners(participants);
+    // 環境変数からシード値を取得して当選者を選出
+    const SEED = Number(process.env.SEED_VALUE) || 565656;
+    const winners = await selectWinners(participants, SEED);
     
     // 当選者情報の生成
     const winnersList = winners.map(winner => {

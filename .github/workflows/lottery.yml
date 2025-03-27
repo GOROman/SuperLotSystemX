@@ -1,0 +1,68 @@
+name: Lottery Draw
+
+on:
+  workflow_dispatch:
+    inputs:
+      seed:
+        description: 'シード値（例: 565656）'
+        required: true
+        type: string
+      winner_count:
+        description: '当選者数'
+        required: true
+        default: '10'
+        type: string
+
+jobs:
+  draw:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          
+      - name: Install dependencies
+        run: npm ci
+        
+      - name: Setup database
+        run: |
+          npx prisma migrate deploy
+          npx prisma db seed
+        env:
+          DATABASE_URL: "file:./prisma/dev.db"
+          
+      - name: Run lottery
+        run: |
+          # 抽選結果をJSONとテキスト形式で保存
+          npx ts-node scripts/campaign-manager.ts > lottery-result.txt
+          npx ts-node scripts/export-winners.ts > winners.json
+        env:
+          DATABASE_URL: "file:./prisma/dev.db"
+          SEED_VALUE: ${{ github.event.inputs.seed }}
+          WINNER_COUNT: ${{ github.event.inputs.winner_count }}
+          
+      - name: Upload lottery result
+        uses: actions/upload-artifact@v4
+        with:
+          name: lottery-result
+          path: |
+            lottery-result.txt
+            winners.json
+          
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: 抽選結果 ${{ github.event.inputs.seed }}
+          tag_name: lottery-${{ github.event.inputs.seed }}
+          body_path: lottery-result.txt
+          files: |
+            lottery-result.txt
+            winners.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -49,6 +49,55 @@ cd SuperLotSystemX
 npm install
 ```
 
+## 抽選の実行方法
+
+### GitHub Actionsを使用した抽選
+
+1. GitHubリポジトリの「Actions」タブを開きます
+2. 「Lottery Draw」ワークフローを選択します
+3. 「Run workflow」ボタンをクリックします
+4. 以下のパラメータを入力します：
+   - シード値（例: 565656）
+   - 当選者数（デフォルト: 10）
+5. 「Run workflow」をクリックして抽選を開始します
+
+### 抽選結果の確認
+
+抽選が完了すると、以下の形式で結果が保存されます：
+
+1. GitHub Releasesに新しいリリースが作成されます
+   - タグ名: `lottery-{シード値}`
+   - 添付ファイル:
+     - `lottery-result.txt`: 抽選結果の詳細（当選者リストとDMメッセージ）
+     - `winners.json`: 当選者データのJSON形式
+
+2. GitHub Actionsの実行結果からもアーティファクトとしてダウンロード可能です
+
+### ローカルでの抽選実行
+
+```bash
+# データベースのセットアップ
+npx prisma migrate deploy
+npm run prisma:seed
+
+# 抽選の実行
+SEED_VALUE=565656 npx ts-node scripts/campaign-manager.ts
+```
+
+## 抽選の仕組み
+
+1. シード値を使用した乱数生成
+   - xorshiftアルゴリズムによる予測可能な乱数生成
+   - 同じシード値で同じ結果を再現可能
+
+2. Fisher-Yatesシャッフル
+   - 公平な抽選を実現するアルゴリズム
+   - 参加者リストをランダムにシャッフル
+
+3. 当選者の選出
+   - シャッフルされたリストから指定数の当選者を選出
+   - 重複なしで公平な抽選を実現
+
 3. 環境変数の設定
 ```bash
 cp .env.example .env
