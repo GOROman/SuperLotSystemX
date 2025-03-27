@@ -113,15 +113,49 @@ async function getRetweetsAndFollowers() {
       console.log(`ツイート ${tweetId} の情報を取得中...`);
       
       // ツイートの情報を取得
-      const tweet = await client.v2.singleTweet(tweetId, {
-        'tweet.fields': ['public_metrics'],
-      });
+      let tweet;
+      try {
+        tweet = await client.v2.singleTweet(tweetId, {
+          'tweet.fields': ['public_metrics'],
+        });
+      } catch (error) {
+        if (error instanceof Error && error.message.includes('429')) {
+          console.log('レートリミットに達しました。待機します...');
+          // 15分待機
+          await new Promise(resolve => setTimeout(resolve, 15 * 60 * 1000));
+          // リトライ
+          tweet = await client.v2.singleTweet(tweetId, {
+            'tweet.fields': ['public_metrics'],
+          });
+        } else {
+          throw error;
+        }
+      }
+
+      // リクエスト間のウェイト
+      await new Promise(resolve => setTimeout(resolve, 5000));
 
       // リツイートしたユーザーを取得
-      const retweeters = await client.v2.tweetRetweetedBy(tweetId, {
-        'user.fields': ['public_metrics'],
-        max_results: 100,
-      });
+      let retweeters;
+      try {
+        retweeters = await client.v2.tweetRetweetedBy(tweetId, {
+          'user.fields': ['public_metrics'],
+          max_results: 100,
+        });
+      } catch (error) {
+        if (error instanceof Error && error.message.includes('429')) {
+          console.log('レートリミットに達しました。待機します...');
+          // 15分待機
+          await new Promise(resolve => setTimeout(resolve, 15 * 60 * 1000));
+          // リトライ
+          retweeters = await client.v2.tweetRetweetedBy(tweetId, {
+            'user.fields': ['public_metrics'],
+            max_results: 100,
+          });
+        } else {
+          throw error;
+        }
+      }
 
       const users = retweeters.data.map(user => ({
         name: user.name,
@@ -140,8 +174,8 @@ async function getRetweetsAndFollowers() {
 
       console.log(`ツイート ${tweetId} の情報取得完了`);
       
-      // API制限に引っかからないよう、少し待機
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // API制限に引っかからないよう、待機
+      await new Promise(resolve => setTimeout(resolve, 5000));
     }
 
     // 結果をファイルに保存
@@ -170,50 +204,10 @@ if (!TWITTER_API_KEY || !TWITTER_API_SECRET || !TWITTER_ACCESS_TOKEN || !TWITTER
 }
 
 // メイン処理の実行
-getRetweetsAndFollowers();
-        });
-        
-        console.log(`ツイート ${tweetId} の処理が完了しました（処理時間: ${tweetProcessTime.toFixed(2)}秒）`);
-        console.log(`取得したユーザー数: ${users.length}`);
-
-      } catch (error) {
-        console.error(`ツイート ${tweetId} の処理中にエラーが発生しました:`);
-        console.error('エラーの詳細:', error instanceof Error ? error.message : String(error));
-        console.error('エラーの発生場所:', error instanceof Error ? error.stack : '不明');
-      }
-    }
-
-    // 結果を表示
-    for (const result of results) {
-      console.log(`\nツイート ID: ${result.tweetId}`);
-      console.log('統計情報:');
-      console.log(`リプライ数: ${result.replies}`);
-      console.log(`リツイート数: ${result.retweets}`);
-      console.log(`いいね数: ${result.likes}`);
-      
-      console.log('リツイートユーザー一覧:');
-      result.users.forEach((user) => {
-        console.log(`${user.name} (${user.id})`);
-      });
-    }
-
-  } catch (error) {
-    console.error('致命的なエラーが発生しました:');
-    console.error('エラーの詳細:', error instanceof Error ? error.message : String(error));
-    console.error('エラーの発生場所:', error instanceof Error ? error.stack : '不明');
-  } finally {
-    console.log('ブラウザを終了中...');
-    await browser.close();
-    const endTime = Date.now();
-    const totalTime = (endTime - startTime) / 1000;
-    console.log(`\n処理が完了しました（総処理時間: ${totalTime.toFixed(2)}秒）`);
-  }
-}
-
-// 環境変数のチェック
-if (!TWITTER_API_KEY || !TWITTER_API_SECRET || !TWITTER_ACCESS_TOKEN || !TWITTER_ACCESS_TOKEN_SECRET || !TARGET_TWEETS.length) {
-  console.error('環境変数 TWITTER_API_KEY、TWITTER_API_SECRET、TWITTER_ACCESS_TOKEN、TWITTER_ACCESS_TOKEN_SECRET、TARGET_TWEETS を設定してください。');
+getRetweetsAndFollowers().catch(error => {
+  console.error('致命的なエラーが発生しました:');
+  console.error('エラーの詳細:', error instanceof Error ? error.message : String(error));
+  console.error('エラーの発生場所:', error instanceof Error ? error.stack : '不明');
   process.exit(1);
-}
+});
 
-getRetweetsAndFollowers();
