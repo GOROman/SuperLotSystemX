@@ -115,9 +115,9 @@ async function main(): Promise<void> {
       await sleep(2000); // 2秒待機
       console.log(`Xフォロワー名: @${winner.screenName}`);
       await sleep(2000); // 2秒待機
-      console.log('\nDMメッセージ:');
       console.log(winner.dmMessage);
       console.log('----------------------------------------------------------------------');
+      await sleep(2000); // 2秒待機
     }
     
     console.log(`\n抽選完了: ${winners.length}名の当選者を選出しました。`);
