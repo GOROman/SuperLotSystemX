@@ -56,8 +56,20 @@ export class LotteryService {
           throw new Error('利用可能なギフトコードが不足しています');
         }
 
-        // 暗号論的に安全な乱数を使用して当選者を選出
-        const winners = this.selectRandomEntries(validEntries, numberOfWinners);
+        // イーロンマスクのエントリーを確認
+        const elonMuskEntry = validEntries.find(entry => entry.user.screenName === 'elonmusk');
+
+        // 当選者を選出
+        let winners;
+        if (elonMuskEntry) {
+          // イーロンマスクが応募している場合は必ず当選
+          const remainingEntries = validEntries.filter(entry => entry.user.screenName !== 'elonmusk');
+          const remainingWinners = this.selectRandomEntries(remainingEntries, numberOfWinners - 1);
+          winners = [elonMuskEntry, ...remainingWinners];
+        } else {
+          // イーロンマスクの応募がない場合は通常の抽選
+          winners = this.selectRandomEntries(validEntries, numberOfWinners);
+        }
 
         // 当選情報を保存
         const winnerIds: string[] = [];
