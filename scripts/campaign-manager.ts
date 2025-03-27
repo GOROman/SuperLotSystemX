@@ -86,21 +86,9 @@ async function isEligible(userId: string): Promise<boolean> {
   return true;
 }
 
-// 当選者へのDM送信
-async function sendWinnerDM(userId: string, giftCode: string): Promise<boolean> {
-  try {
-    const message = `🎉おめでとうございます！\nGOROmanフォロワー5万人突破記念キャンペーンに当選しました！\n\nAmazonギフト券（${config.giftAmount}円分）: ${giftCode}\n\nご参加ありがとうございました！`;
-    
-    await twitterClient.v2.sendDmToParticipant({
-      participantId: userId,
-      text: message
-    });
-    
-    return true;
-  } catch (error) {
-    console.error(`DM送信エラー (${userId}):`, error);
-    return false;
-  }
+// DM送信用のメッセージを生成
+function generateDMMessage(giftCode: string): string {
+  return `🎉おめでとうございます！\nGOROmanフォロワー5万人突破記念キャンペーンに当選しました！\n\nAmazonギフト券（${config.giftAmount}円分）: ${giftCode}\n\nご参加ありがとうございました！`;
 }
 
 // 抽選処理
@@ -137,28 +125,34 @@ async function main(): Promise<void> {
     // 当選者の選出
     const winners = await selectWinners(participants);
     
-    // 当選者の処理
-    for (const winner of winners) {
+    // 当選者情報の生成
+    const winnersList = winners.map(winner => {
       // ギフトコードの生成（実際にはAmazonギフト券APIなどを使用）
       const giftCode = `DEMO-${Math.random().toString(36).substring(2, 15)}`;
+      const dmMessage = generateDMMessage(giftCode);
       
-      // DMの送信
-      const dmSent = await sendWinnerDM(winner.userId, giftCode);
-      
-      if (dmSent) {
-        // データベースの更新
-        await prisma.participant.update({
-          where: { id: winner.id },
-          data: {
-            isWinner: true,
-            giftCode: giftCode,
-            notifiedAt: new Date()
-          }
-        });
-      }
-    }
+      return {
+        userId: winner.userId,
+        screenName: winner.screenName,
+        giftCode,
+        dmMessage
+      };
+    });
     
-    console.log(`抽選完了: ${winners.length}名の当選者に通知を送信しました。`);
+    // 当選者リストの出力
+    console.log('\n=== 当選者リスト ===');
+    winnersList.forEach((winner, index) => {
+      console.log(`\n[当選者 ${index + 1}]`);
+      console.log(`ユーザーID: ${winner.userId}`);
+      console.log(`スクリーンネーム: ${winner.screenName}`);
+      console.log(`ギフトコード: ${winner.giftCode}`);
+      console.log('\nDMメッセージ:');
+      console.log(winner.dmMessage);
+      console.log('---');
+    });
+    
+    console.log(`\n抽選完了: ${winners.length}名の当選者を選出しました。`);
+    console.log('当選者へのDM送信は手動で行ってください。');
   } catch (error) {
     console.error('エラーが発生しました:', error);
   } finally {
