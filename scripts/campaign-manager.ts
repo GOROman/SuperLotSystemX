@@ -26,7 +26,7 @@ Object.entries(config).forEach(([key, value]) => {
 
 // DM送信用のメッセージを生成
 function generateDMMessage(giftCode: string): string {
-  return `🎉おめでとうございます！\nGOROmanフォロワー5万人突破記念キャンペーンに当選しました！\n\nAmazonギフト券（${config.giftAmount}円分）\n\nご参加ありがとうございました！`;
+  return `\n🎉おめでとうございます！\nGOROmanフォロワー5万人突破記念キャンペーンに当選しました！\n\nAmazonギフト券（${config.giftAmount}円分）\n\nご参加ありがとうございました！`;
 }
 
 // シード値に基づく乱数生成器クラス
@@ -104,20 +104,22 @@ async function main(): Promise<void> {
       };
     });
     
+    // 2秒待機する関数
+    const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
     // 当選者リストの出力
     console.log('\n=== 当選者リスト ===');
+    await sleep(2000); // 2秒待機
+
     winnersList.forEach((winner, index) => {
-      console.log(`\n[当選者 ${index + 1}]`);
-      console.log(`ユーザーID: ${winner.userId}`);
-      console.log(`スクリーンネーム: ${winner.screenName}`);
-      console.log(`ギフトコード: ${winner.giftCode}`);
+      console.log(`[当選者 ${index + 1}]`);
+      console.log(`Xフォロワー名: @${winner.screenName}`);
       console.log('\nDMメッセージ:');
       console.log(winner.dmMessage);
-      console.log('---');
+      console.log('----------------------------------------------------------------------');
     });
     
     console.log(`\n抽選完了: ${winners.length}名の当選者を選出しました。`);
-    console.log('当選者へのDM送信は手動で行ってください。');
   } catch (error) {
     console.error('エラーが発生しました:', error);
   } finally {
