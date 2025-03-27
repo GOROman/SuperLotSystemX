@@ -1,44 +1,50 @@
 name: GOROmanフォロワー数五万人突破キャンペーン！
 
+# 手動実行時のパラメータ設定
 on:
   workflow_dispatch:
     inputs:
       seed:
-        description: 'シード値（例: 565656）'
+        description: '抽選用シード値'
         required: true
         type: string
       winner_count:
-        description: '当選者数'
+        description: '当選者数の設定'
         required: true
         default: '10'
         type: string
 
+# ジョブの定義
 jobs:
+  # 抽選処理の実行
   draw:
     runs-on: ubuntu-latest
     
     steps:
+      # リポジトリのチェックアウト
       - uses: actions/checkout@v4
       
-      - name: Setup Node.js
+      # Node.js環境のセットアップ
+      - name: Node.js環境の準備
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
           
-      - name: Install dependencies
+      # 依存パッケージのインストール
+      - name: パッケージのインストール
         run: npm ci
         
-      - name: Setup database
+      # データベースのセットアップ
+      - name: データベースの準備
         run: |
           mkdir -p prisma
-          touch prisma/dev.db
           npx prisma migrate deploy
-          npx prisma db seed
         env:
           DATABASE_URL: "file:./prisma/dev.db"
           
-      - name: Run lottery
+      # 抽選の実行
+      - name: 抽選の実行
         run: |
           # 抽選結果をJSONとテキスト形式で保存
           npx ts-node scripts/campaign-manager.ts > lottery-result.txt
@@ -48,7 +54,8 @@ jobs:
           SEED_VALUE: ${{ github.event.inputs.seed }}
           WINNER_COUNT: ${{ github.event.inputs.winner_count }}
           
-      - name: Upload lottery result
+      # 抽選結果の保存
+      - name: 抽選結果のアップロード
         uses: actions/upload-artifact@v4
         with:
           name: lottery-result
@@ -56,7 +63,8 @@ jobs:
             lottery-result.txt
             winners.json
           
-      - name: Create Release
+      # GitHubリリースの作成
+      - name: リリースの作成
         id: create_release
         uses: softprops/action-gh-release@v1
         with:
