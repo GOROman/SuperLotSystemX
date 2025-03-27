@@ -10,115 +10,61 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ユーザー情報
-model User {
-  id           String    @id @default(uuid())
-  twitterId    String    @unique // Twitter ID
-  screenName   String    // Twitter スクリーンネーム
-  profileImage String?   // プロフィール画像URL
-  isFollower   Boolean   @default(false) // フォロワーかどうか
-  followedAt   DateTime? // フォロー日時
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  entries      Entry[]   // 応募エントリーへの参照
-  winners      Winner[]  // 当選情報への参照
+// キャンペーン参加者
+model Participant {
+  id          String    @id @default(uuid())
+  userId      String    @unique // Twitter ID
+  screenName  String    // Twitter スクリーンネーム
+  isFollower  Boolean   @default(false)
+  isEligible  Boolean   @default(false) // 応募条件を満たしているか
+  isWinner    Boolean   @default(false) // 当選したか
+  giftCode    String?   // Amazonギフト券コード
+  notifiedAt  DateTime? // 当選通知送信日時
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  retweets    Retweet[] // リツイート情報
 
-  @@index([isFollower]) // フォロワー検索の最適化
+  @@index([isFollower, isEligible, isWinner])
 }
 
-// キャンペーンエントリー
-model Entry {
-  id            String    @id @default(uuid())
-  userId        String
-  user          User      @relation(fields: [userId], references: [id])
-  retweetId     String    // リツイートのID
-  retweetedAt   DateTime  // リツイートした日時
-  createdAt     DateTime  @default(now())
-  isValid       Boolean   @default(true) // エントリーが有効かどうか
-  invalidReason String?   // 無効な場合の理由
+// リツイート情報
+model Retweet {
+  id            String      @id @default(uuid())
+  tweetId       String      // 対象ツイートID
+  participantId String
+  participant   Participant @relation(fields: [participantId], references: [id])
+  retweetedAt   DateTime    @default(now())
 
-  @@unique([userId, retweetId]) // 重複エントリー防止
-  @@index([isValid, createdAt]) // 有効なエントリーの検索最適化
+  @@unique([participantId, tweetId])
+  @@index([tweetId])
 }
 
-// 当選情報
-model Winner {
-  id             String             @id @default(uuid())
-  userId         String
-  user           User               @relation(fields: [userId], references: [id])
-  giftCodeId     String             @unique
-  giftCode       GiftCode           @relation(fields: [giftCodeId], references: [id])
-  notifiedAt     DateTime?          // 通知日時
-  dmSentAt       DateTime?          // DM送信日時
-  dmMessageId    String?            // DMのメッセージID
-  createdAt      DateTime           @default(now())
-  status         WinnerStatus       @default(PENDING)
-  notifications  NotificationQueue[]
+// キャンペーン設定
+model Campaign {
+  id          String    @id @default(uuid())
+  name        String    // キャンペーン名
+  description String    // 説明
+  startDate   DateTime  // 開始日時
+  endDate     DateTime  // 終了日時
+  winnerCount Int       // 当選者数
+  giftAmount  Int       // ギフト券金額
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  tweets      Tweet[]   // 対象ツイート
 
-  @@index([status]) // ステータスによる検索最適化
+  @@index([isActive])
 }
 
-// ギフトコード
-model GiftCode {
-  id            String    @id @default(uuid())
-  code          String    @unique // ギフトコード
-  encryptedCode String?   // 暗号化されたコード
-  amount        Int       // 金額
-  isUsed        Boolean   @default(false) // 使用済みかどうか
-  createdAt     DateTime  @default(now())
-  usedAt        DateTime? // 使用日時
-  expiresAt     DateTime? // 有効期限
-  note          String?   // メモ
-  winner        Winner?   // 当選者への参照
+// キャンペーンの対象ツイート
+model Tweet {
+  id          String   @id @default(uuid())
+  tweetId     String   // TwitterのツイートID
+  campaignId  String
+  campaign    Campaign @relation(fields: [campaignId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  @@index([isUsed]) // 未使用コードの検索最適化
-}
-
-// 通知キュー
-model NotificationQueue {
-  id          String             @id @default(uuid())
-  winnerId    String             @unique
-  winner      Winner             @relation(fields: [winnerId], references: [id])
-  giftCodeId  String
-  status      NotificationStatus @default(PENDING)
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
-  error       String?            // エラーメッセージ
-  retryCount  Int                @default(0)
-  lastRetryAt DateTime?          // 最後の再試行日時
-
-  @@index([status, createdAt]) // ステータスと作成日時による検索最適化
-}
-
-// システムログ
-model SystemLog {
-  id        String   @id @default(uuid())
-  type      LogType  // ログタイプ
-  message   String   // ログメッセージ
-  metadata  Json?    // 追加のメタデータ
-  createdAt DateTime @default(now())
-
-  @@index([type, createdAt]) // ログの検索最適化
-}
-
-enum WinnerStatus {
-  PENDING   // 通知待ち
-  NOTIFIED  // 通知済み
-  SENT      // DM送信済み
-  FAILED    // 送信失敗
-}
-
-enum NotificationStatus {
-  PENDING   // 処理待ち
-  SENDING   // 送信中
-  SENT      // 送信完了
-  FAILED    // 送信失敗
-  RETRYING  // 再試行中
-}
-
-enum LogType {
-  INFO
-  WARNING
-  ERROR
-  SECURITY
+  @@unique([campaignId, tweetId])
+  @@index([tweetId])
 }
