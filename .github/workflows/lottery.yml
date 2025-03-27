@@ -31,6 +31,8 @@ jobs:
         
       - name: Setup database
         run: |
+          mkdir -p prisma
+          touch prisma/dev.db
           npx prisma migrate deploy
           npx prisma db seed
         env:
