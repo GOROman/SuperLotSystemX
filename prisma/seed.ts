@@ -5,11 +5,8 @@ const prisma = new PrismaClient();
 
 async function main() {
   // SQLファイルを実行
-  console.log('キャンペーンデータを作成中...');
+  console.log('テストデータを作成中...');
   execSync('npx prisma db execute --file ./prisma/seed.sql');
-  
-  console.log('参加者データを作成中...');
-  execSync('npx prisma db execute --file ./prisma/seed_real_participants.sql');
 }
 
 main()
