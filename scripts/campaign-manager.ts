@@ -110,7 +110,7 @@ async function main(): Promise<void> {
     // 当選者リストの出力
     console.log('\n=== 当選者リスト ===');
 
-    winnersList.forEach((winner, index) => {
+    for (const [index, winner] of winnersList.entries()) {
       console.log(`[当選者 ${index + 1}]`);
       await sleep(2000); // 2秒待機
       console.log(`Xフォロワー名: @${winner.screenName}`);
@@ -118,7 +118,7 @@ async function main(): Promise<void> {
       console.log('\nDMメッセージ:');
       console.log(winner.dmMessage);
       console.log('----------------------------------------------------------------------');
-    });
+    }
     
     console.log(`\n抽選完了: ${winners.length}名の当選者を選出しました。`);
   } catch (error) {
