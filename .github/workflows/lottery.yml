@@ -19,6 +19,9 @@ jobs:
   # 抽選処理の実行
   draw:
     runs-on: ubuntu-latest
+    # GitHubトークンの権限設定
+    permissions:
+      contents: write # リリース作成に必要な権限
     
     steps:
       # リポジトリのチェックアウト
