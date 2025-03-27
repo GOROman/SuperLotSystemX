@@ -39,9 +39,7 @@ jobs:
       - name: データベースの準備
         run: |
           mkdir -p prisma
-          rm -f prisma/dev.db
-          touch prisma/dev.db
-          npx prisma migrate reset --force
+          npx prisma migrate deploy
         env:
           DATABASE_URL: "file:./prisma/dev.db"
           
