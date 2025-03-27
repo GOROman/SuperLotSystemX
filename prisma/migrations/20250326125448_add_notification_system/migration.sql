@@ -37,13 +37,32 @@ CREATE TABLE "Winner" (
 );
 
 -- CreateTable
+CREATE TABLE "NotificationQueue" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "winnerId" TEXT NOT NULL,
+    "giftCodeId" TEXT NOT NULL,
+    "status" TEXT NOT NULL DEFAULT 'PENDING',
+    "messageId" TEXT,
+    "retryCount" INTEGER NOT NULL DEFAULT 0,
+    "lastError" TEXT,
+    "lastRetryAt" DATETIME,
+    "sentAt" DATETIME,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL,
+    CONSTRAINT "NotificationQueue_winnerId_fkey" FOREIGN KEY ("winnerId") REFERENCES "Winner" ("id") ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT "NotificationQueue_giftCodeId_fkey" FOREIGN KEY ("giftCodeId") REFERENCES "GiftCode" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+);
+
+-- CreateTable
 CREATE TABLE "GiftCode" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "code" TEXT NOT NULL,
+    "encryptedCode" TEXT,
     "amount" INTEGER NOT NULL,
     "isUsed" BOOLEAN NOT NULL DEFAULT false,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "usedAt" DATETIME,
+    "expiresAt" DATETIME,
     "note" TEXT
 );
 
@@ -73,6 +92,15 @@ CREATE UNIQUE INDEX "Winner_giftCodeId_key" ON "Winner"("giftCodeId");
 
 -- CreateIndex
 CREATE INDEX "Winner_status_idx" ON "Winner"("status");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "NotificationQueue_winnerId_key" ON "NotificationQueue"("winnerId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "NotificationQueue_giftCodeId_key" ON "NotificationQueue"("giftCodeId");
+
+-- CreateIndex
+CREATE INDEX "NotificationQueue_status_idx" ON "NotificationQueue"("status");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "GiftCode_code_key" ON "GiftCode"("code");
