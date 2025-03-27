@@ -3,11 +3,15 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 async function checkData() {
-  const participantCount = await prisma.participant.count();
-  const retweetCount = await prisma.retweet.count();
+  const userCount = await prisma.user.count();
+  const entryCount = await prisma.entry.count({
+    where: {
+      isValid: true
+    }
+  });
   
-  console.log('Participants:', participantCount);
-  console.log('Retweets:', retweetCount);
+  console.log('ユーザー数:', userCount);
+  console.log('有効な応募数:', entryCount);
   
   await prisma.$disconnect();
 }

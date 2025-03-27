@@ -3,7 +3,7 @@
 ## テーブル構成
 
 ### User（ユーザー情報）
-- id: ユニークID (CUID)
+- id: ユニークID (UUID)
 - twitterId: Twitter ID（ユニーク）
 - screenName: Twitterスクリーンネーム
 - isFollower: フォロワーフラグ
@@ -11,7 +11,25 @@
 - updatedAt: 更新日時
 
 ### Entry（応募エントリー）
-- id: ユニークID (CUID)
+- id: ユニークID (UUID)
+- userId: ユーザーID（外部キー）
+- retweetId: リツイートID
+- retweetedAt: リツイート日時
+- createdAt: 作成日時
+- isValid: 有効フラグ
+- invalidReason: 無効理由（オプション）
+
+## インデックス
+
+### Entry
+- [userId, isValid]: 応募の検索効率化
+
+## リレーション
+
+### User - Entry
+- 1対多の関係
+- ユーザーは複数の応募を持つことができる
+- 応募は必ず1人のユーザーに属する
 - userId: ユーザーID（外部キー）
 - retweetId: リツイートID
 - createdAt: 作成日時
