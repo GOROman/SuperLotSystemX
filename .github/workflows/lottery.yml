@@ -49,8 +49,8 @@ jobs:
       # 抽選の実行
       - name: 抽選の実行
         run: |
-          # 抽選結果をテキスト形式で保存
-          npx ts-node scripts/campaign-manager.ts > lottery-result.txt
+          # 抽選結果を標準出力とファイルの両方に出力
+          npx ts-node scripts/campaign-manager.ts | tee lottery-result.txt
         env:
           DATABASE_URL: "file:./prisma/dev.db"
           SEED_VALUE: ${{ github.event.inputs.seed }}
