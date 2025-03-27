@@ -1,214 +1,176 @@
-import { chromium } from 'playwright';
+import { TwitterApi } from 'twitter-api-v2';
 import dotenv from 'dotenv';
+import * as fs from 'fs';
+import * as path from 'path';
 
 dotenv.config();
 
-const TWITTER_EMAIL = process.env.TWITTER_EMAIL;
-const TWITTER_PASSWORD = process.env.TWITTER_PASSWORD;
+const TWITTER_API_KEY = process.env.TWITTER_API_KEY;
+const TWITTER_API_SECRET = process.env.TWITTER_API_SECRET;
+const TWITTER_ACCESS_TOKEN = process.env.TWITTER_ACCESS_TOKEN;
+const TWITTER_ACCESS_TOKEN_SECRET = process.env.TWITTER_ACCESS_TOKEN_SECRET;
 const TARGET_TWEETS = process.env.TARGET_TWEETS?.split(',') || [];
 
 type TweetStats = {
   tweetId: string;
-  replies: string;
-  retweets: string;
-  likes: string;
+  replies: number;
+  retweets: number;
+  likes: number;
   users: Array<{
     name: string;
     id: string;
+    username: string;
+    followersCount: number;
   }>;
 };
 
+/**
+ * HTMLレポートを生成する関数
+ */
+function generateHtmlReport(results: TweetStats[]): string {
+  const rows = results.map(result => {
+    const userRows = result.users
+      .map(user => `
+        <tr>
+          <td>${user.name}</td>
+          <td><a href="https://twitter.com/${user.username}" target="_blank">@${user.username}</a></td>
+          <td>${user.followersCount.toLocaleString()}</td>
+        </tr>
+      `)
+      .join('');
+
+    return `
+      <div class="tweet-stats">
+        <h2>ツイート ID: ${result.tweetId}</h2>
+        <p>
+          リプライ: ${result.replies.toLocaleString()} | 
+          リツイート: ${result.retweets.toLocaleString()} | 
+          いいね: ${result.likes.toLocaleString()}
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>名前</th>
+              <th>ユーザー名</th>
+              <th>フォロワー数</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${userRows}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }).join('');
+
+  return `
+    <!DOCTYPE html>
+    <html lang="ja">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>リツイート情報</title>
+      <style>
+        body { font-family: sans-serif; margin: 2rem; }
+        .tweet-stats { margin-bottom: 2rem; }
+        table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+        th, td { padding: 0.5rem; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background-color: #f5f5f5; }
+        a { color: #1da1f2; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+      </style>
+    </head>
+    <body>
+      <h1>リツイート情報レポート</h1>
+      ${rows}
+    </body>
+    </html>
+  `;
+}
+
+/**
+ * リツイートとフォロワー情報を取得する関数
+ */
 async function getRetweetsAndFollowers() {
-  console.log('ブラウザを起動中...');
+  console.log('Twitter APIクライアントを初期化中...');
   const startTime = Date.now();
-  const browser = await chromium.launch({ headless: false });
-  const context = await browser.newContext();
-  const page = await context.newPage();
+  
+  if (!TWITTER_API_KEY || !TWITTER_API_SECRET || !TWITTER_ACCESS_TOKEN || !TWITTER_ACCESS_TOKEN_SECRET) {
+    throw new Error('Twitter API認証情報が設定されていません。');
+  }
+
+  const client = new TwitterApi({
+    appKey: TWITTER_API_KEY,
+    appSecret: TWITTER_API_SECRET,
+    accessToken: TWITTER_ACCESS_TOKEN,
+    accessSecret: TWITTER_ACCESS_TOKEN_SECRET,
+  });
+
   const results: TweetStats[] = [];
-  console.log('ブラウザの起動完了');
 
   try {
-    console.log('Twitterログインページにアクセス中...');
-    await page.goto('https://twitter.com/i/flow/login');
-    console.log('ログインページの読み込み完了');
-    
-    // メールアドレスを入力
-    console.log('メールアドレス入力フィールドを待機中...');
-    await page.waitForSelector('input[autocomplete="username"]', { timeout: 60000 });
-    await page.type('input[autocomplete="username"]', TWITTER_EMAIL!);
-    console.log('メールアドレスの入力完了');
-    await page.waitForTimeout(1000);
-    
-    // 次へボタンをクリック
-    await page.keyboard.press('Enter');
-    await page.waitForTimeout(2000);
+    for (const tweetId of TARGET_TWEETS) {
+      console.log(`ツイート ${tweetId} の情報を取得中...`);
+      
+      // ツイートの情報を取得
+      const tweet = await client.v2.singleTweet(tweetId, {
+        'tweet.fields': ['public_metrics'],
+      });
 
-    // ユーザー名入力画面が表示された場合の処理
-    try {
-      const userNameInput = await page.$('input[data-testid="ocfEnterTextTextInput"]');
-      if (userNameInput) {
-        await userNameInput.type(TWITTER_EMAIL!);
-        await page.keyboard.press('Enter');
-        await page.waitForTimeout(2000);
-      }
-    } catch (error) {
-      console.log('ユーザー名入力画面は表示されませんでした');
+      // リツイートしたユーザーを取得
+      const retweeters = await client.v2.tweetRetweetedBy(tweetId, {
+        'user.fields': ['public_metrics'],
+        max_results: 100,
+      });
+
+      const users = retweeters.data.map(user => ({
+        name: user.name,
+        id: user.id,
+        username: user.username,
+        followersCount: user.public_metrics?.followers_count || 0,
+      }));
+
+      results.push({
+        tweetId,
+        replies: tweet.data.public_metrics?.reply_count || 0,
+        retweets: tweet.data.public_metrics?.retweet_count || 0,
+        likes: tweet.data.public_metrics?.like_count || 0,
+        users,
+      });
+
+      console.log(`ツイート ${tweetId} の情報取得完了`);
+      
+      // API制限に引っかからないよう、少し待機
+      await new Promise(resolve => setTimeout(resolve, 1000));
     }
 
-    // パスワードを入力
-    await page.waitForSelector('input[type="password"]', { timeout: 60000 });
-    await page.type('input[type="password"]', TWITTER_PASSWORD!);
-    await page.waitForTimeout(1000);
-    
-    // ログインボタンをクリック
-    await page.keyboard.press('Enter');
-    
-    // ログイン完了を待つ
-    await page.waitForTimeout(10000);
+    // 結果をファイルに保存
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const outputDir = path.join(__dirname, 'debug_output');
+    if (!fs.existsSync(outputDir)) {
+      fs.mkdirSync(outputDir);
+    }
 
-    for (const tweetId of TARGET_TWEETS) {
-      try {
-        const tweetStartTime = Date.now();
-        console.log(`\n処理中のツイート: ${tweetId}`);
-        
-        // 元のツイートページに移動
-        console.log(`ツイートページにアクセス中... (${tweetId})`);
-        await page.goto(`https://twitter.com/GOROman/status/${tweetId}`);
-        await page.waitForTimeout(5000); // ページの読み込みを待つ
-        
-        // ページのHTMLを出力して構造を確認
-        console.log('\n=== ツイートページのHTML ===');
-        console.log(await page.content());
-        console.log('=== END ツイートページのHTML ===\n');
+    const outputPath = path.join(outputDir, `retweets_${TARGET_TWEETS[0]}_${timestamp}.html`);
+    const htmlContent = generateHtmlReport(results);
+    fs.writeFileSync(outputPath, htmlContent, 'utf-8');
 
-        // インタラクション情報を取得
-        console.log('インタラクション情報を取得中...');
-        try {
-          const stats = await page.$$eval('article[data-testid="tweet"] div[role="group"] span', (elements) => {
-            return elements.map(el => el.textContent?.trim()).filter(Boolean);
-          });
-          console.log('取得したインタラクション情報:', stats);
-        } catch (error) {
-          console.log('インタラクション情報の取得に失敗:', error);
-        }
+    console.log(`処理が完了しました。結果は ${outputPath} に保存されました。`);
+    console.log(`処理時間: ${(Date.now() - startTime) / 1000} 秒`);
+  } catch (error) {
+    console.error('エラーが発生しました:', error);
+    throw error;
+  }
+}
 
-        // リツイートページに移動
-        console.log('リツイートページに移動中...');
-        await page.goto(`https://twitter.com/i/timeline/retweets?include_available_features=1&include_entities=1&id=${tweetId}`);
+// 環境変数のチェック
+if (!TWITTER_API_KEY || !TWITTER_API_SECRET || !TWITTER_ACCESS_TOKEN || !TWITTER_ACCESS_TOKEN_SECRET || !TARGET_TWEETS.length) {
+  console.error('環境変数 TWITTER_API_KEY、TWITTER_API_SECRET、TWITTER_ACCESS_TOKEN、TWITTER_ACCESS_TOKEN_SECRET、TARGET_TWEETS を設定してください。');
+  process.exit(1);
+}
 
-        // UserCell要素が表示されるまで待機
-        console.log('UserCell要素の読み込みを待機中...');
-        try {
-          await page.waitForSelector('div[data-testid="UserCell"]', { timeout: 10000 });
-          console.log('UserCell要素の読み込みが完了');
-        } catch (error) {
-          console.log('警告: UserCell要素が見つかりませんでした');
-        }
-
-        // ページのHTMLをファイルに保存
-        const html = await page.content();
-        const fs = require('fs');
-        const path = require('path');
-        const outputDir = path.join(__dirname, 'debug_output');
-        
-        // 出力ディレクトリがなければ作成
-        if (!fs.existsSync(outputDir)) {
-          fs.mkdirSync(outputDir, { recursive: true });
-        }
-
-        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-        const htmlFilePath = path.join(outputDir, `retweets_${tweetId}_${timestamp}.html`);
-        fs.writeFileSync(htmlFilePath, html);
-        console.log(`HTMLを保存しました: ${htmlFilePath}`);
-
-        // ページのHTMLを出力して構造を確認
-        console.log('\n=== リツイートページのHTML ===');
-        console.log(html);
-        console.log('=== END リツイートページのHTML ===\n');
-
-        // 利用可能なdata-testid属性を探す
-        console.log('\n=== 利用可能なdata-testid属性を探索 ===');
-        const dataTestIds = await page.evaluate(() => {
-          const elements = Array.from(document.querySelectorAll('[data-testid]'));
-          return elements.map(el => el.getAttribute('data-testid')).filter(Boolean);
-        });
-        console.log('見つかったdata-testid属性:', dataTestIds);
-        console.log('=== END data-testid属性探索 ===\n');
-        
-        // リツイートユーザーの要素を取得して詳細を出力
-        const tweetElements = await page.$$('article[data-testid="tweet"]');
-        console.log(`\n=== Found ${tweetElements.length} tweet elements ===`);
-
-        // ユーザー情報を取得する前に要素の存在を確認
-        const userCellsCount = await page.$$eval('div[data-testid="UserCell"]', els => els.length);
-        console.log(`\n見つかったUserCell要素数: ${userCellsCount}`);
-
-        const users = await page.evaluate(() => {
-          const debug = (msg: string, ...args: any[]) => {
-            console.log(`[DEBUG] ${msg}`, ...args);
-          };
-
-          debug('ユーザー情報の取得を開始');
-
-          const userElements = Array.from(document.querySelectorAll('div[data-testid="UserCell"]'));
-          debug(`見つかったUserCell要素数: ${userElements.length}`);
-
-          return userElements.map((el, index) => {
-            debug(`ユーザー ${index + 1} の処理を開始`);
-            debug('要素のHTML:', el.outerHTML);
-
-            // ユーザーアバターのコンテナからユーザーIDを取得
-            const avatarContainer = el.querySelector('div[data-testid^="UserAvatar-Container-"]');
-            const userId = avatarContainer?.getAttribute('data-testid')?.replace('UserAvatar-Container-', '');
-            debug('ユーザーID:', userId);
-
-            // ユーザー名を取得
-            const userNameEl = el.querySelector('div[data-testid="User-Name"] span');
-            const name = userNameEl?.textContent?.trim();
-            debug('ユーザー名:', name);
-            debug('ユーザー名要素:', userNameEl ? userNameEl.outerHTML : 'null');
-
-            if (name && userId) {
-              debug(`ユーザー ${index + 1} の情報を取得成功:`, { name, id: '@' + userId });
-              return { name, id: '@' + userId };
-            }
-
-            debug(`ユーザー ${index + 1} の情報取得に失敗`);
-            return null;
-          }).filter((user): user is { name: string; id: string } => user !== null);
-        });
-
-        console.log(`\n取得したユーザー数: ${users.length}`);
-        if (users.length === 0) {
-          console.log('警告: ユーザー情報を取得できませんでした');
-        }
-
-        const tweetEndTime = Date.now();
-        const tweetProcessTime = (tweetEndTime - tweetStartTime) / 1000;
-        
-        let tweetStats = {
-          replies: '0',
-          retweets: '0',
-          likes: '0'
-        };
-
-        try {
-          const stats = await page.$$eval('article[data-testid="tweet"] div[role="group"] span', (elements) => {
-            return elements.map(el => el.textContent?.trim()).filter(Boolean);
-          });
-          tweetStats = {
-            replies: stats[0] || '0',
-            retweets: stats[1] || '0',
-            likes: stats[2] || '0'
-          };
-        } catch (error) {
-          console.log('インタラクション情報の取得に失敗:', error);
-        }
-
-        results.push({
-          tweetId,
-          ...tweetStats,
-          users
+// メイン処理の実行
+getRetweetsAndFollowers();
         });
         
         console.log(`ツイート ${tweetId} の処理が完了しました（処理時間: ${tweetProcessTime.toFixed(2)}秒）`);
@@ -249,8 +211,8 @@ async function getRetweetsAndFollowers() {
 }
 
 // 環境変数のチェック
-if (!TWITTER_EMAIL || !TWITTER_PASSWORD || !TARGET_TWEETS.length) {
-  console.error('環境変数 TWITTER_EMAIL、TWITTER_PASSWORD、TARGET_TWEETS を設定してください。');
+if (!TWITTER_API_KEY || !TWITTER_API_SECRET || !TWITTER_ACCESS_TOKEN || !TWITTER_ACCESS_TOKEN_SECRET || !TARGET_TWEETS.length) {
+  console.error('環境変数 TWITTER_API_KEY、TWITTER_API_SECRET、TWITTER_ACCESS_TOKEN、TWITTER_ACCESS_TOKEN_SECRET、TARGET_TWEETS を設定してください。');
   process.exit(1);
 }
 
