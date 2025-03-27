@@ -78,9 +78,10 @@ export class LotteryService {
             const createdWinner = await tx.winner.create({
               data: {
                 userId: winner.userId,
+                entryId: winner.id,
                 giftCodeId: availableGiftCodes[index].id,
                 status: 'PENDING',
-              },
+              } as const,
             });
             winnerIds.push(createdWinner.userId);
           } catch (error) {
@@ -117,7 +118,7 @@ export class LotteryService {
   /**
    * 暗号論的に安全な乱数を使用してエントリーからランダムに選出
    */
-  private selectRandomEntries(entries: Array<{ userId: string; user: { screenName: string } }>, count: number): Array<{ userId: string; user: { screenName: string } }> {
+  private selectRandomEntries(entries: Array<{ id: string; userId: string; user: { screenName: string } }>, count: number): Array<{ id: string; userId: string; user: { screenName: string } }> {
     const selected = new Set<number>();
     const result = [];
     let attempts = 0;
