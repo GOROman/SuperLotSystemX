@@ -4,6 +4,10 @@ node_modules/
 .pnp.js
 .csv
 
+# Database
+prisma/seed*.sql
+!prisma/dev.db
+
 
 # Testing
 coverage/
