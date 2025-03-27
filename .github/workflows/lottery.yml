@@ -46,22 +46,20 @@ jobs:
       # 抽選の実行
       - name: 抽選の実行
         run: |
-          # 抽選結果をJSONとテキスト形式で保存
+          # 抽選結果をテキスト形式で保存
           npx ts-node scripts/campaign-manager.ts > lottery-result.txt
-          npx ts-node scripts/export-winners.ts > winners.json
         env:
           DATABASE_URL: "file:./prisma/dev.db"
           SEED_VALUE: ${{ github.event.inputs.seed }}
           WINNER_COUNT: ${{ github.event.inputs.winner_count }}
+          GIFT_AMOUNT: "15"
           
       # 抽選結果の保存
       - name: 抽選結果のアップロード
         uses: actions/upload-artifact@v4
         with:
           name: lottery-result
-          path: |
-            lottery-result.txt
-            winners.json
+          path: lottery-result.txt
           
       # GitHubリリースの作成
       - name: リリースの作成
@@ -71,8 +69,6 @@ jobs:
           name: 抽選結果 ${{ github.event.inputs.seed }}
           tag_name: lottery-${{ github.event.inputs.seed }}
           body_path: lottery-result.txt
-          files: |
-            lottery-result.txt
-            winners.json
+          files: lottery-result.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

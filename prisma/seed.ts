@@ -1,12 +1,10 @@
 import { PrismaClient } from '@prisma/client';
-import { execSync } from 'child_process';
 
 const prisma = new PrismaClient();
 
 async function main() {
-  // SQLファイルを実行
   console.log('データベースを初期化中...');
-  execSync('npx prisma db execute --file ./prisma/seed.sql');
+  // 必要に応じてここに初期データを追加
   console.log('データベースの初期化が完了しました。');
 }
 
