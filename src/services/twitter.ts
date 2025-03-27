@@ -83,3 +83,29 @@ export class TwitterService {
       throw error;
     }
   }
+
+  /**
+   * ダイレクトメッセージを送信する
+   * @param userId 送信先のユーザーID
+   * @param message メッセージ内容
+   * @returns メッセージID
+   */
+  async sendDirectMessage(userId: string, message: string): Promise<string> {
+    try {
+      const result = await this.client.v2.sendDmToParticipant(userId, {
+        text: message
+      });
+
+      // Twitter API v2の型定義が不完全なため、anyを使用
+      const dmResult = result as any;
+      if (!dmResult.dm_conversation_id) {
+        throw new Error('Failed to send direct message');
+      }
+
+      return dmResult.dm_conversation_id;
+    } catch (error) {
+      console.error(`Error sending direct message to user ${userId}:`, error);
+      throw error;
+    }
+  }
+}
