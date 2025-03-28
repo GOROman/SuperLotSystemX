@@ -19,6 +19,45 @@ model User {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   entries     Entry[]   // 応募情報
+  winner      Winner?   // 当選情報
+}
+
+// 当選者情報
+model Winner {
+  id            String    @id @default(uuid())
+  userId        String    @unique
+  user          User      @relation(fields: [userId], references: [id])
+  token         String    @unique // 当選確認用トークン
+  confirmedAt   DateTime? // 当選確認日時
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  giftCode      GiftCode?
+  notification  WinnerNotification?
+}
+
+// ギフトコード情報
+model GiftCode {
+  id          String    @id @default(uuid())
+  code        String    // 暗号化されたギフトコード
+  winnerId    String?   @unique
+  winner      Winner?   @relation(fields: [winnerId], references: [id])
+  isUsed      Boolean   @default(false)
+  usedAt      DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+// 当選通知情報
+model WinnerNotification {
+  id          String    @id @default(uuid())
+  winnerId    String    @unique
+  winner      Winner    @relation(fields: [winnerId], references: [id])
+  status      String    // PENDING, CONFIRMED, EXPIRED
+  viewCount   Int       @default(0)
+  lastViewedAt DateTime?
+  expiresAt   DateTime  // 通知の有効期限
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 }
 
 // 応募情報
